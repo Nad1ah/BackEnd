@@ -1,6 +1,23 @@
 const Joi = require('joi');
 const products = require("./data");
+const {getDb} = require("../db/mongo")
 
+const productCollectionName = "products";
+
+async function getProductsCollection() {
+  const db = await getDb();
+  return db.collection(productCollectionName);
+}
+
+async function findProduct(filter) {
+  const productCollection = await getProductsCollection();
+  return productCollection.findOne(filter);
+}
+
+async function deleteProductFromDb(id) {
+  const productCollection = await getProductsCollection();
+  return productCollection.deleteOne({ id: parseInt(id, 10) });
+}
 const productSchema = Joi.object({
   id: Joi.number().integer().min(1).max(10),
   name: Joi.string().min(1).max(50).required(),
@@ -8,9 +25,9 @@ const productSchema = Joi.object({
   price: Joi.number().precision(2).required(),
 });
 
-const getProductById = (req, res) => {
+const getProductById = async (req, res) => {
   const { id } = req.params;
-  const product = products.find((p) => p.id === parseInt(id, 10));
+  const product = await findProduct({ id: parseInt(id, 10) });
 
   if (!product) {
     return res.status(404).json({ error: 'Produto não encontrado' });
@@ -19,36 +36,13 @@ const getProductById = (req, res) => {
   res.json(product);
 };
 
-const createProduct = (req, res) => {
-  const { error } = productSchema.validate(req.body);
-
-  if (error) {
-    return res.status(400).json({ error: error.details[0].message });
-  }
-
-  const newProduct = {
-    id: products.length + 1,
-    ...req.body,
-  };
-
-  products.push(newProduct);
-  res.status(201).json(newProduct);
-};
-
-const deleteProduct = (req, res) => {
+const deleteProduct = async (req, res) => {
   const { id } = req.params;
-  const index = products.findIndex((p) => p.id === parseInt(id, 10));
+  const result = await deleteProductFromDb(id);
 
-  if (index === -1) {
+  if (result.deletedCount === 0) {
     return res.status(404).json({ error: 'Produto não encontrado' });
   }
 
-  products.splice(index, 1);
   res.status(204).end();
-};
-
-module.exports = {
-  getProductById,
-  createProduct,
-  deleteProduct,
 };
